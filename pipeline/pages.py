@@ -131,7 +131,31 @@ FONTS = ("https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@700;8
 
 
 def esc(s):
-    return html.escape(s, quote=True)
+    return html.escape(str(s), quote=True)
+
+
+def rankings_data():
+    path = SITE / "data" / "rankings.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+
+
+def rank_rows(rows, short=False):
+    out = []
+    for r in rows:
+        title = f'<span class="ttl">{esc(r["title"])}</span>' if r["title"] else ""
+        name = (f'<a class="dlink" href="https://ratings.fide.com/profile/{r["id"]}" rel="noopener" '
+                f'target="_blank">{esc(r["name"])}</a>')
+        cells = [f'<td class="pos mono">{r["rank"]}</td>']
+        if not short:
+            cells.append('<td class="mono" data-col="move" hidden></td>')
+        cells.append(f'<td class="who">{title}{name}</td>')
+        cells.append(f'<td class="fed mono">{esc(r["fed"])}</td>')
+        cells.append(f'<td class="num mono pts">{r["rating"]}</td>')
+        if not short:
+            cells.append(f'<td class="num mono dim">{r["games"] or "–"}</td>')
+            cells.append(f'<td class="num mono dim">{r["born"] or "–"}</td>')
+        out.append("<tr>" + "".join(cells) + "</tr>")
+    return "\n".join(out)
 
 
 def head(title, desc, path):
@@ -192,16 +216,22 @@ def header(current):
 """
 
 
-FOOTER = """
+FOOTER_TOP = """
 <footer>
   <div class="wrap foot-row">
     <span>An independent, non-commercial fan project. Not associated with FIDE, Lichess or Chess.com.</span>
     <span>Data from FIDE and Lichess</span>
   </div>
 </footer>
-</body>
-</html>
 """
+
+
+def footer(*scripts):
+    tags = "".join(f'<script src="/assets/{s}"></script>\n' for s in scripts)
+    return FOOTER_TOP + tags + "</body>\n</html>\n"
+
+
+FOOTER = footer()
 
 # the pawn, drawn on a 45 x 45 square
 PAWN = ('<circle cx="22.5" cy="12" r="6"/>'
@@ -252,7 +282,7 @@ def board():
 FEATURES = [
     ("live", "Live", "Live boards", "Top games as they happen, with the engine's view, both clocks and rating changes the moment a game ends.", "Planned"),
     ("events", "Odds", "Tournament odds", "Each player's chance of winning an event, simulated again after every game.", "Planned"),
-    ("rankings", "FIDE", "Rankings", "Standard, rapid and blitz top lists every month, and a live view of every Indian player.", "Next"),
+    ("rankings", "FIDE", "Rankings", "The FIDE top 100 in standard, rapid and blitz: open, women, juniors, girls and the India list.", "New"),
     ("players", "Players", "Player pages", "Rating history, peak, opening fingerprint and how each player handles the clock.", "Planned"),
     ("prodigies", "Juniors", "Prodigy tracker", "Today's juniors against the greats, rating by rating at the same age.", "Planned"),
     ("compare", "H2H", "Head to head", "Two players side by side: ratings, peaks and their record against each other.", "Planned"),
@@ -262,12 +292,30 @@ FEATURES = [
 ]
 
 
-def home():
+def top_ten(data):
+    if not data:
+        return ""
+    return f"""  <section class="wrap block" aria-labelledby="top-ten">
+    <div class="block-head"><h2 id="top-ten">World top 10</h2><a class="text-link" href="/rankings">Full rankings</a></div>
+    <p class="label intro">Standard, FIDE rating list, {esc(data['period'])}</p>
+    <div class="table-box">
+      <table class="short">
+        <thead><tr><th scope="col">#</th><th scope="col">Player</th><th scope="col">Fed</th><th scope="col" class="num">Rating</th></tr></thead>
+        <tbody>
+{rank_rows(data['lists']['standard']['open'][:10], short=True)}
+        </tbody>
+      </table>
+    </div>
+  </section>
+"""
+
+
+def home(data=None):
     desc = ("Live top chess games with the engine's view and both clocks, FIDE rankings, tournament odds "
             "updated after every game, player pages and a prodigy tracker.")
     cards = []
     for slug, kind, name, text, status in FEATURES:
-        pill = "pill pill-next" if status == "Next" else "pill"
+        pill = "pill pill-next" if status in ("Next", "New") else "pill"
         cards.append(f"""      <a class="fcard" href="/{slug}">
         <div class="fcard-top"><span class="fcard-kind">{kind.upper()}</span><span class="{pill}">{status}</span></div>
         <span class="fcard-name">{name}</span>
@@ -288,9 +336,10 @@ def home():
     {board()}
   </section>
 
+{top_ten(data)}
   <section class="wrap block" aria-labelledby="whats-here">
     <div class="block-head"><h2 id="whats-here">What's here</h2></div>
-    <p class="label intro">The site is being built one part at a time. Rankings come first.</p>
+    <p class="label intro">The site is being built one part at a time. Rankings are up, the rest follows.</p>
     <div class="features">
 {chr(10).join(cards)}
     </div>
@@ -329,6 +378,43 @@ def page(slug):
     return head(f"{p['title']} · {NAME}", p["desc"], f"/{slug}") + header(slug) + body + FOOTER
 
 
+def rankings(data):
+    p = PAGES["rankings"]
+    if not data:
+        return page("rankings")
+    controls = "".join(
+        f'<button type="button" class="seg-btn{" on" if c == "standard" else ""}" aria-pressed="{str(c == "standard").lower()}" data-tc="{c}">{c.title()}</button>'
+        for c in ("standard", "rapid", "blitz"))
+    lists = "".join(
+        f'<button type="button" class="chip{" on" if l == "open" else ""}" aria-pressed="{str(l == "open").lower()}" data-list="{l}">{n}</button>'
+        for l, n in (("open", "Open"), ("women", "Women"), ("juniors", "Juniors"), ("girls", "Girls"), ("india", "India")))
+    body = f"""
+<main id="main" tabindex="-1">
+  <section class="wrap page-head">
+    <h1 class="page-title">{esc(p['head'])}</h1>
+    <p class="lede">The FIDE top 100 in standard, rapid and blitz, for the open list, women, juniors, girls and India. Only active players are ranked, the same as FIDE's own lists.</p>
+  </section>
+  <section class="wrap block">
+    <div class="rank-bar">
+      <div class="seg" role="group" aria-label="Time control">{controls}</div>
+      <div class="chips" role="group" aria-label="Which list">{lists}</div>
+    </div>
+    <p class="label rank-note" id="rank-note">Standard · Open · FIDE rating list, {esc(data['period'])} · active players only</p>
+    <div class="table-box">
+      <table class="rank">
+        <thead><tr><th scope="col">#</th><th scope="col" data-col="move" hidden>Move</th><th scope="col">Player</th><th scope="col">Fed</th><th scope="col" class="num">Rating</th><th scope="col" class="num">Games</th><th scope="col" class="num">Born</th></tr></thead>
+        <tbody id="rank-body">
+{rank_rows(data['lists']['standard']['open'])}
+        </tbody>
+      </table>
+    </div>
+    <p class="label fine">Games is the number of rated games in the last rating period. Juniors are players turning 20 or younger this year. Who moved up or down shows from the next monthly list on.</p>
+  </section>
+</main>
+"""
+    return head(f"{p['title']} · {NAME}", p["desc"], "/rankings") + header("rankings") + body + footer("rankings.js")
+
+
 def not_found():
     body = """
 <main id="main" tabindex="-1">
@@ -343,8 +429,10 @@ def not_found():
 
 
 def write():
-    files = {"index.html": home(), "404.html": not_found()}
+    data = rankings_data()
+    files = {"index.html": home(data), "404.html": not_found()}
     files.update({f"{slug}.html": page(slug) for slug in PAGES})
+    files["rankings.html"] = rankings(data)
     for name, text in files.items():
         (SITE / name).write_text(text, encoding="utf-8", newline="\n")
     return sorted(files)
