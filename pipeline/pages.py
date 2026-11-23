@@ -5,7 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SITE = ROOT / "site"
-BASE = "https://enpassant.pages.dev"
+BASE = "https://en-passant.pages.dev"
 NAME = "EnPassant"
 SEAL = "アン・パッサン"
 
