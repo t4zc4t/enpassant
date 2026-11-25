@@ -18,7 +18,7 @@ The site itself is just the `site/` folder, so any static server works for a loo
 
 ## How the rankings stay up to date
 
-FIDE publishes one combined file with every rated player, about 50 MB zipped. A GitHub Action reads it once a day, keeps only active players (FIDE leaves inactive players out of its own top lists too) and writes the top 100 for each list. The rating list only changes at the start of the month, so most days the file comes out the same and nothing gets committed. When a new month's list lands, the old ranks are kept so the table can show who moved up or down.
+FIDE publishes one combined file with every rated player, about 50 MB zipped. FIDE's server doesn't answer GitHub's machines, so a tiny Cloudflare Worker fetches the file and hands it over. A GitHub Action reads it that way once a day, keeps only active players (FIDE leaves inactive players out of its own top lists too) and writes the top 100 for each list. The rating list only changes at the start of the month, so most days the file comes out the same and nothing gets committed. When a new month's list lands, the old ranks are kept so the table can show who moved up or down.
 
 ## Data
 

@@ -1,6 +1,7 @@
 """FIDE's combined rating list -> site/data/rankings.json (top lists only)."""
 import io
 import json
+import os
 import sys
 import urllib.request
 import zipfile
@@ -12,6 +13,8 @@ from xml.etree.ElementTree import iterparse
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "site" / "data" / "rankings.json"
 URL = "https://ratings.fide.com/download/players_list_xml.zip"
+# FIDE doesn't answer GitHub's servers, so the updater goes through our Worker
+RELAY = os.environ.get("FIDE_RELAY")
 AGENT = "EnPassant rankings (github.com/t4zc4t/enpassant)"
 TOP = 100
 
@@ -21,7 +24,7 @@ LISTS = ["open", "women", "juniors", "girls", "india"]
 
 
 def fetch():
-    req = urllib.request.Request(URL, headers={"User-Agent": AGENT})
+    req = urllib.request.Request(RELAY or URL, headers={"User-Agent": AGENT})
     with urllib.request.urlopen(req, timeout=300) as r:
         stamp = r.headers.get("Last-Modified")
         body = r.read()

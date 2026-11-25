@@ -26,6 +26,8 @@ jobs:
           python-version: "3.14"
       - name: Read the FIDE list
         run: python pipeline/fide.py
+        env:
+          FIDE_RELAY: https://en-passant-fide.nyxaroth-vt.workers.dev/players_list_xml.zip
       - name: Write the pages
         run: python pipeline/pages.py
       - name: Check the pages
